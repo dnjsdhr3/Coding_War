@@ -106,11 +106,11 @@ public class BbsController {
 		//글생성 Post
 		@RequestMapping( method = RequestMethod.POST)
 		public String createContentPost(Model model,
-														HttpServletRequest request,
-														@RequestParam("title") String title,
-														@RequestParam("content") String content,
-														@RequestParam("writer") String writer,
-														MultipartHttpServletRequest mRequest) {
+				HttpServletRequest request,
+					@RequestParam("title") String title,
+					@RequestParam("content") String content,
+					@RequestParam("writer") String writer,
+					MultipartHttpServletRequest mRequest) {
 
 			BbsVo vo = new BbsVo();
 	
