@@ -1,0 +1,198 @@
+package org.think.controller;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
+
+import javax.inject.Inject;
+import javax.servlet.http.HttpServletRequest;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.multipart.MultipartHttpServletRequest;
+import org.springframework.web.servlet.ModelAndView;
+import org.think.service.BbsFileService;
+import org.think.service.BbsService;
+import org.think.util.BbsPaging;
+import org.think.vo.BbsVo;
+
+@Controller
+public class BbsController {
+	private static final Logger logger = LoggerFactory.getLogger(BbsController.class);
+	
+	@Inject
+	BbsService service;
+	@Inject
+	BbsFileService fileService;
+	
+	//메인 
+	@RequestMapping(value = "/", method = RequestMethod.GET)
+	public String BbsMain(Model model) {
+		return "home";
+	}
+	
+	//게시판목록
+	@RequestMapping(value="/list/{pageNo}", method = RequestMethod.GET)
+	public String BbsList(Model model, @PathVariable("pageNo") int pageNo) throws Exception{
+		List<BbsVo> rlist = null;
+			
+		try{
+			int totalRecord = service.countContent();
+			
+			/*int pageCount = (int)Math.ceil(totalRecord / 5.f); // 반올림 해줌으로써 안나오던 게시글을 보여줌 
+			if( pageCount <= pageNo ) {
+				pageNo = pageCount;
+			}*/
+			
+			rlist = service.readContentList(pageNo);   
+			BbsPaging bpg = new BbsPaging(pageNo, totalRecord); 
+			model.addAttribute("rlist",rlist);
+			model.addAttribute("totalRecord",totalRecord);
+			model.addAttribute("bpg",bpg);
+		}catch (Exception e) {
+			e.printStackTrace();
+		}
+		return "list";
+	}
+	
+	//상세페이지
+	@RequestMapping(value = "/list/detail/{bbsno}", method = RequestMethod.GET)
+	public String BbsDetail(Model model, @PathVariable("bbsno")int bbsno) {
+		BbsVo BbsDetail;
+		try{
+			BbsDetail = service.readContent(bbsno);
+			 model.addAttribute("BbsDetail", BbsDetail );
+		}catch (Exception e) {
+			e.printStackTrace();
+		}
+		return "detail";
+	}
+	
+/*	//글생성
+	@RequestMapping(value = "/list/create_contents", method = RequestMethod.GET)
+	public String CreateContentGet(Model model) {
+		
+		try {
+			int totalRecord = service.countContent(); 
+			model.addAttribute("totalRecord",totalRecord);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return "create";
+	}*/
+
+	//글생성
+		@RequestMapping(value = "/list/create_contents", method = RequestMethod.GET)
+		public ModelAndView CreateContentGet(Model model) {
+		        ModelAndView mv = new ModelAndView();
+		        mv.setViewName("create");
+			try {
+				int totalRecord = service.countContent(); 
+				model.addAttribute("totalRecord",totalRecord);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			return mv;
+		}
+	
+		
+		//글생성 Post
+		@RequestMapping( method = RequestMethod.POST)
+		public String createContentPost(Model model,
+														HttpServletRequest request,
+														@RequestParam("title") String title,
+														@RequestParam("content") String content,
+														@RequestParam("writer") String writer,
+														MultipartHttpServletRequest mRequest) {
+
+			BbsVo vo = new BbsVo();
+	
+			vo.setTitle(title);
+			vo.setContent(content);
+			vo.setWriter(writer);
+			int bbsNo = 0;
+			
+			try {
+				service.createContent(vo);
+				bbsNo = service.getLastContent().getBbsno();  // 생성후 디테일부분을 볼 수 있게 게시글 끝 번호를 준다 
+				model.addAttribute("bbsNo",bbsNo);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			
+			/*fileService.fileUpload(mRequest);*/
+			MultipartFile f = vo.getFileupload();
+			System.out.println(f);
+			if(vo.getFileupload() != null){ // 파일이 업로드 체크
+				System.out.println("222");
+				
+				String orgname = f.getOriginalFilename();
+				System.out.println(orgname);
+				String newname = orgname + System.currentTimeMillis() + f.getSize();
+				String path = "C:\\file";
+				File file = new File(path + File.separator + newname);
+				vo.setOrgfilename(orgname);
+				vo.setNewfilename(newname);
+				try {
+					f.transferTo(file);
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
+			
+			return "redirect:/list/detail/" + String.valueOf(bbsNo);
+		}
+	
+	//글 삭제 
+	@RequestMapping(value ="/list/delete/{bbsno}", method = RequestMethod.GET)
+	public String deleteContent(Model model, @PathVariable("bbsno") int bbsno) {
+		
+		try{
+			service.deleteContent(bbsno);
+		}catch (Exception e) {
+			e.printStackTrace();
+		}
+		return "redirect:/list/1";
+	}
+	
+	//글 수정
+	@RequestMapping(value = "/list/detail/update/{bbsno}", method = RequestMethod.GET)
+	public String bbsUpdate(Model model,@PathVariable("bbsno") int bbsno) {
+		BbsVo update ;
+		
+		try {
+			update = service.readContent(bbsno);
+			model.addAttribute("updateNo", update );
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return "update";
+	}
+		
+	//글 수정 Post
+	@RequestMapping(value ="/list/detail/update/{bbsno}",method = RequestMethod.POST)
+	public String updateContentPost(Model model,
+													HttpServletRequest request,
+													@RequestParam("title") String title,
+													@RequestParam("content") String content,
+													@PathVariable("bbsno") int bbsno) {
+				
+		try {
+			BbsVo vo = service.readContent(bbsno);
+			vo.setTitle(title);
+			vo.setContent(content);
+			service.updateContent(vo);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return "redirect:/list/detail/" + String.valueOf(bbsno);
+		}
+	}
+
